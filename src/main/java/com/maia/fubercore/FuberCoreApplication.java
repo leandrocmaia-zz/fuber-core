@@ -1,0 +1,14 @@
+package com.maia.fubercore;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class FuberCoreApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(FuberCoreApplication.class, args);
+	}
+
+}
+
