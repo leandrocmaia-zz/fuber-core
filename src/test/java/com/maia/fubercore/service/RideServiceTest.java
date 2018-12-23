@@ -7,6 +7,7 @@ import com.maia.fubercore.model.Ride;
 import com.maia.fubercore.model.User;
 import com.maia.fubercore.repository.DriverRepository;
 import com.maia.fubercore.repository.RideRepository;
+import com.maia.fubercore.util.Triplet;
 import javafx.util.Pair;
 import org.junit.Before;
 import org.junit.Test;
@@ -36,7 +37,6 @@ public class RideServiceTest {
 
     private final Pair<Double, Double> locationBrandenburgGate = new Pair<>(52.516410, 13.378126);
     private final Pair<Double, Double> locationOstkreuz = new Pair<>(52.504393, 13.467889);
-
 
     @Before
     public void setUp() throws Exception {
@@ -69,27 +69,50 @@ public class RideServiceTest {
 
     @Test(expected = NoAvailableDriverException.class)
     public void should_fail_start_ride_no_drivers() throws NoAvailableDriverException {
-        Ride response = rideService.startRide(buildNewRide());
-        assertNotNull(response);
-        assertThat(response.getStatus(), equalTo(Ride.Status.REQUESTED));
+        rideService.startRide(buildNewRide());
     }
-
 
     @Test
     public void should_assign_driver_to_ride() throws NoAvailableDriverException {
 
+        // lat-long in order of distance from locationBrandenburgGate
         createDrivers(5, Arrays.asList(
-            new Pair<>(52.516410, 13.378126),
-            new Pair<>(52.519077, 13.403151),
-            new Pair<>(52.522715, 13.410314),
-            new Pair<>(52.533997, 13.420838),
-            new Pair<>(52.547887, 13.428647)
+            new Triplet<>(Driver.Status.ONLINE, 52.516410, 13.378126), //nearest
+            new Triplet<>(Driver.Status.ONLINE, 52.519077, 13.403151),
+            new Triplet<>(Driver.Status.ONLINE, 52.522715, 13.410314),
+            new Triplet<>(Driver.Status.ONLINE, 52.533997, 13.420838),
+            new Triplet<>(Driver.Status.ONLINE, 52.547887, 13.428647)
         ));
         Ride response = rideService.startRide(buildNewRide());
 
         assertNotNull(response.getDriver());
         assertThat(response.getDriver().getLat(), equalTo(52.516410));
         assertThat(response.getDriver().getLon(), equalTo(13.378126));
+    }
+
+    @Test
+    public void should_assign_different_driver_to_ride() throws NoAvailableDriverException {
+
+        // lat-long in order of distance from locationBrandenburgGate
+        createDrivers(5, Arrays.asList(
+            new Triplet<>(Driver.Status.OFFLINE, 52.516410, 13.378126),
+            new Triplet<>(Driver.Status.OFFLINE, 52.519077, 13.403151),
+            new Triplet<>(Driver.Status.ONLINE, 52.522715, 13.410314), // nearest
+            new Triplet<>(Driver.Status.ONLINE, 52.533997, 13.420838),
+            new Triplet<>(Driver.Status.ONLINE, 52.547887, 13.428647)
+        ));
+        Ride response = rideService.startRide(buildNewRide());
+
+        assertNotNull(response.getDriver());
+        assertThat(response.getDriver().getLat(), equalTo(52.522715));
+        assertThat(response.getDriver().getLon(), equalTo(13.410314));
+    }
+
+    @Test
+    public void should_wait_driver_to_confirm() {
+        // https://eng.uber.com/tech-stack-part-one/
+        // uber still uses polling and not message-driven events
+        // i will probably do pub-sub pattern, needs some refactoring
     }
 
     private Ride buildNewRide() {
@@ -101,21 +124,19 @@ public class RideServiceTest {
             .destLat(locationOstkreuz.getKey())
             .destLon(locationOstkreuz.getValue())
             .build();
-
     }
 
-    private void createDrivers(int n, List<Pair<Double, Double>> latLongs) {
+    private void createDrivers(int n, List<Triplet<Driver.Status, Double, Double>> driverMeta) {
         for (int i = 0; i < n; i++) {
             Driver driver = Driver
                 .builder()
                 .car(Car.builder().model("BMW").plate("PLATE 12345" + i).build())
                 .user(User.builder().name("Driver" + 1).build())
-                .lat(latLongs.get(i).getKey())
-                .lon(latLongs.get(i).getValue())
-                .status(Driver.Status.ONLINE)
+                .lat(driverMeta.get(i).getMiddle())
+                .lon(driverMeta.get(i).getRight())
+                .status(driverMeta.get(i).getLeft())
                 .build();
             driverRepository.save(driver);
         }
-
     }
 }
